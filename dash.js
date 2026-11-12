@@ -23,7 +23,10 @@ const app = express();
 const PORT = process.env.PORT || 4000;
 const PAGE_SIZE = 10;
 
-const client = new MongoClient(process.env.MONGODB_URI || `mongodb+srv://ms555app_db_user:l5MztOUjHXml6KKI@c0.uoosfng.mongodb.net/`);
+const client = new MongoClient(
+  process.env.MONGODB_URI ||
+    `mongodb+srv://ms555app_db_user:l5MztOUjHXml6KKI@c0.uoosfng.mongodb.net/`,
+);
 
 let db;
 
@@ -53,21 +56,21 @@ app.get("/risky-products", async (req, res) => {
         {
           product_id: {
             $regex: search,
-            $options: "i"
-          }
+            $options: "i",
+          },
         },
         {
           "input.name": {
             $regex: search,
-            $options: "i"
-          }
-        }
+            $options: "i",
+          },
+        },
       ];
     }
 
     const pipeline = [
       {
-        $match: searchFilter
+        $match: searchFilter,
       },
 
       {
@@ -77,59 +80,52 @@ app.get("/risky-products", async (req, res) => {
               branches: [
                 {
                   case: {
-                    $eq: [
-                      "$risk_analysis.overall_risk",
-                      "high"
-                    ]
+                    $eq: ["$risk_analysis.overall_risk", "high"],
                   },
-                  then: 3
+                  then: 3,
                 },
                 {
                   case: {
-                    $eq: [
-                      "$risk_analysis.overall_risk",
-                      "medium"
-                    ]
+                    $eq: ["$risk_analysis.overall_risk", "medium"],
                   },
-                  then: 2
+                  then: 2,
                 },
                 {
                   case: {
-                    $eq: [
-                      "$risk_analysis.overall_risk",
-                      "low"
-                    ]
+                    $eq: ["$risk_analysis.overall_risk", "low"],
                   },
-                  then: 1
-                }
+                  then: 1,
+                },
               ],
-              default: 0
-            }
-          }
-        }
+              default: 0,
+            },
+          },
+        },
       },
 
       {
         $sort: {
           risk_priority: -1,
-          analyzed_at: -1
-        }
+          "risk_analysis.risk_score": -1,
+          analyzed_at: -1,
+          product_id: 1,
+        },
       },
 
       {
         $facet: {
           metadata: [
             {
-              $count: "total"
-            }
+              $count: "total",
+            },
           ],
 
           data: [
             {
-              $skip: skip
+              $skip: skip,
             },
             {
-              $limit: PAGE_SIZE
+              $limit: PAGE_SIZE,
             },
 
             {
@@ -144,23 +140,20 @@ app.get("/risky-products", async (req, res) => {
 
                 inventory: "$input.inventory",
 
-                sales_velocity:
-                  "$input.sales.sales_velocity_sales_per_day",
+                sales_velocity: "$input.sales.sales_velocity_sales_per_day",
 
-                upcoming_replenishments:
-                  "$input.upcoming_replenishments",
+                upcoming_replenishments: "$input.upcoming_replenishments",
 
-                current_promotions:
-                  "$input.current_promotions",
+                current_promotions: "$input.current_promotions",
 
                 risk_analysis: 1,
 
-                analyzed_at: 1
-              }
-            }
-          ]
-        }
-      }
+                analyzed_at: 1,
+              },
+            },
+          ],
+        },
+      },
     ];
 
     const [result] = await db
@@ -168,11 +161,9 @@ app.get("/risky-products", async (req, res) => {
       .aggregate(pipeline)
       .toArray();
 
-    const total =
-      result.metadata[0]?.total || 0;
+    const total = result.metadata[0]?.total || 0;
 
-    const totalPages =
-      Math.ceil(total / PAGE_SIZE);
+    const totalPages = Math.ceil(total / PAGE_SIZE);
 
     res.json({
       page,
@@ -182,19 +173,16 @@ app.get("/risky-products", async (req, res) => {
       has_next_page: page < totalPages,
       has_previous_page: page > 1,
       search: search || null,
-      products: result.data
+      products: result.data,
     });
-
   } catch (error) {
     console.error("Failed to fetch risky products:", error);
 
     res.status(500).json({
-      error: "Failed to fetch risky products"
+      error: "Failed to fetch risky products",
     });
   }
 });
-
-
 
 const startTimeUtc = new Date().toISOString();
 
@@ -218,17 +206,14 @@ app.get("/health", async (req, res) => {
 
     // Disk usage
     const disk = await checkDiskSpace(
-      process.platform === "win32" ? "C:" : "/"
+      process.platform === "win32" ? "C:" : "/",
     );
 
     const diskUsage = {
       totalGB: +(disk.size / 1024 ** 3).toFixed(2),
       freeGB: +(disk.free / 1024 ** 3).toFixed(2),
       usedGB: +((disk.size - disk.free) / 1024 ** 3).toFixed(2),
-      usedPercent: +(
-        ((disk.size - disk.free) / disk.size) *
-        100
-      ).toFixed(2),
+      usedPercent: +(((disk.size - disk.free) / disk.size) * 100).toFixed(2),
     };
 
     res.status(200).json({
@@ -254,11 +239,8 @@ async function startServer() {
     await connectDB();
 
     app.listen(PORT, () => {
-      console.log(
-        `Dashboard API running on http://localhost:${PORT}`
-      );
+      console.log(`Dashboard API running on http://localhost:${PORT}`);
     });
-
   } catch (error) {
     console.error("Failed to start server:", error);
     process.exit(1);
