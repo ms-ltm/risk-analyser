@@ -1031,7 +1031,7 @@ async function explainFactor(product, scoring, task) {
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
       const response = await openai.chat.completions.create({
-        'typhoon-v2.5-30b-a3b-instruct',
+        model: 'typhoon-v2.5-30b-a3b-instruct',
         messages: [
           {
             role: "system",
