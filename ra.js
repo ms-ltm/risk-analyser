@@ -20,7 +20,7 @@ console.error = (...args) => {
 const {
   MONGODB_URI = "mongodb+srv://ms555app_db_user:l5MztOUjHXml6KKI@c0.uoosfng.mongodb.net/",
   MONGODB_DB_NAME = "retail_inventory_db",
-  OPENAI_API_KEY = "sk-9LxaofOOi1gAdqTOKQhOsdqLFEfIYuT7VEFXfLS03AJIly1W",
+  OPENAI_API_KEY = "sk-3LbSGW4wgha8lsD8OUR5fBnhi2nnU6TDIrA2Tu4oN64mDEUZ",
 
   ENDPOINT = "aiplatform.googleapis.com",
   REGION = "global",
