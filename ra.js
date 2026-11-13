@@ -68,11 +68,11 @@ function subtractYears(date, years) {
 
 // Deterministic, explainable 0-100 scoring. Tune weights and thresholds using real outcomes.
 const RISK_WEIGHTS = Object.freeze({
-  days_left: 0.3,
+  days_left: 0.4,
   replenishment: 0.25,
-  sales_trend: 0.15,
-  promotion: 0.1,
-  promotion_calendar: 0.1,
+  sales_trend: 0.1,
+  promotion: 0.075,
+  promotion_calendar: 0.075,
   historical_sales: 0.1,
 });
 const clamp = (value, min = 0, max = 100) =>
@@ -155,10 +155,11 @@ function calculateRiskScores(product) {
     promotion_calendar: promotionCalendar,
     historical_sales: historicalSales,
   };
-  const score = Object.entries(RISK_WEIGHTS).reduce(
+  const weightedScore = Object.entries(RISK_WEIGHTS).reduce(
     (total, [key, weight]) => total + factors[key] * weight,
     0,
   );
+  const score = stock === 0 ? Math.max(70.01, weightedScore) : weightedScore;
   return {
     risk_score: Number(score.toFixed(2)),
     overall_risk: riskLevel(score),
@@ -914,8 +915,8 @@ async function aggregateProducts() {
         .digest("hex");
       let explanation = {};
       let explanationStatus = "not_required";
-      if (scoring.overall_risk === "high") {
-        stats.high++;
+      if (scoring.overall_risk === "high") stats.high++;
+      if (scoring.overall_risk !== "low") {
         const fresh =
           previous?.llm_analyzed_at &&
           Date.now() - new Date(previous.llm_analyzed_at).getTime() <
@@ -928,7 +929,6 @@ async function aggregateProducts() {
           explanation = {
             factor_explanations: previous.risk_analysis.factor_explanations,
             factor_models: previous.risk_analysis.factor_models,
-            reason: previous.risk_analysis.reason,
           };
           explanationStatus = "cached";
           stats.reused++;
@@ -1025,18 +1025,32 @@ const TASKS = [
   ],
 ];
 const pause = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const LLM_REQUESTS_PER_MINUTE = 30;
+const LLM_REQUEST_INTERVAL_MS = Math.ceil(
+  (60 * 1000) / LLM_REQUESTS_PER_MINUTE,
+);
+let nextLlmRequestAt = 0;
+
+async function waitForLlmRequestSlot() {
+  const now = Date.now();
+  const requestAt = Math.max(now, nextLlmRequestAt);
+  nextLlmRequestAt = requestAt + LLM_REQUEST_INTERVAL_MS;
+  await pause(requestAt - now);
+}
+
 async function explainFactor(product, scoring, task) {
   const [key, defaultModel, select] = task;
   const model = process.env[`RISK_MODEL_${key.toUpperCase()}`] || defaultModel;
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
+      await waitForLlmRequestSlot();
       const response = await openai.chat.completions.create({
-        model: 'typhoon-v2.5-30b-a3b-instruct',
+        model: "typhoon-v2.5-30b-a3b-instruct",
         messages: [
           {
             role: "system",
             content:
-              "Explain one inventory risk factor using provided evidence. Do not invent facts. Return JSON with a single nonempty 'reason' string.",
+              'Explain this inventory risk factor in one concise sentence, under 200 characters. Use only the provided evidence; do not invent facts. Return valid JSON with exactly one nonempty "reason" string.',
           },
           {
             role: "user",
@@ -1050,7 +1064,7 @@ async function explainFactor(product, scoring, task) {
           },
         ],
         temperature: 0.2,
-        max_completion_tokens: 200,
+        max_completion_tokens: 120,
         response_format: { type: "json_object" },
       });
       const result = JSON.parse(
@@ -1098,7 +1112,6 @@ async function getRiskAnalysis(product, scoring) {
       results.map((r) => [r.key, r.reason]),
     ),
     factor_models: Object.fromEntries(results.map((r) => [r.key, r.model])),
-    reason: results.map((r) => `${r.key}: ${r.reason}`).join(" "),
   };
 }
 
