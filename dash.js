@@ -148,6 +148,26 @@ app.get("/risky-products", async (req, res) => {
 
                 risk_analysis: 1,
 
+                reason: {
+                  $reduce: {
+                    input: {
+                      $objectToArray: {
+                        $ifNull: ["$risk_analysis.factor_explanations", {}],
+                      },
+                    },
+                    initialValue: "",
+                    in: {
+                      $concat: [
+                        "$$value",
+                        {
+                          $cond: [{ $eq: ["$$value", ""] }, "", " "],
+                        },
+                        "$$this.v",
+                      ],
+                    },
+                  },
+                },
+
                 analyzed_at: 1,
               },
             },
